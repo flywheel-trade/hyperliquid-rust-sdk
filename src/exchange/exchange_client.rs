@@ -111,21 +111,11 @@ impl HashGenerator {
     }
 
     pub async fn market_open(params: MarketOrderParams) -> Result<Value> {
-        let slippage = params.slippage.unwrap_or(0.05); // Default 5% slippage
-
-        let px = Self::calculate_slippage_price(
-            params.is_buy,
-            slippage,
-            params.px,
-            params.price_decimals,
-        )
-        .await?;
-
         let order = ClientOrderRequest {
             asset: params.asset,
             is_buy: params.is_buy,
             reduce_only: false,
-            limit_px: px,
+            limit_px: 0.0,
             sz: params.sz,
             cloid: params.cloid,
             order_type: ClientOrder::Limit(ClientLimit {
@@ -140,20 +130,11 @@ impl HashGenerator {
         params: MarketOrderParams,
         builder: BuilderInfo,
     ) -> Result<Value> {
-        let slippage = params.slippage.unwrap_or(0.05); // Default 5% slippage
-        let px = Self::calculate_slippage_price(
-            params.is_buy,
-            slippage,
-            params.px,
-            params.price_decimals,
-        )
-        .await?;
-
         let order = ClientOrderRequest {
             asset: params.asset,
             is_buy: params.is_buy,
             reduce_only: false,
-            limit_px: px,
+            limit_px: 0.0,
             sz: params.sz,
             cloid: params.cloid,
             order_type: ClientOrder::Limit(ClientLimit {
@@ -166,24 +147,12 @@ impl HashGenerator {
     }
 
     pub async fn market_close(params: MarketCloseParams) -> Result<Value> {
-        let slippage = params.slippage.unwrap_or(0.05); // Default 5% slippage
-
-        let px = Self::calculate_slippage_price(
-            params.is_buy,
-            slippage,
-            params.px,
-            params.price_decimals,
-        )
-        .await?;
-
-        let sz = round_to_decimals(params.sz, params.price_decimals);
-
         let order = ClientOrderRequest {
             asset: params.asset,
             is_buy: params.is_buy,
             reduce_only: true,
-            limit_px: px,
-            sz,
+            limit_px: params.px,
+            sz: params.sz,
             cloid: params.cloid,
             order_type: ClientOrder::Limit(ClientLimit {
                 tif: "Ioc".to_string(),
@@ -333,38 +302,6 @@ impl HashGenerator {
 
         Ok(message)
     }
-
-    async fn calculate_slippage_price(
-        is_buy: bool,
-        slippage: f64,
-        px: f64,
-        price_decimals: u32,
-    ) -> Result<f64> {
-        let slippage_factor = if is_buy {
-            1.0 + slippage
-        } else {
-            1.0 - slippage
-        };
-        let px = px * slippage_factor;
-
-        // Round to the correct number of decimal places and significant figures
-        let px = round_to_significant_and_decimal(px, 5, price_decimals);
-
-        Ok(px)
-    }
-}
-
-fn round_to_decimals(value: f64, decimals: u32) -> f64 {
-    let factor = 10f64.powi(decimals as i32);
-    (value * factor).round() / factor
-}
-
-fn round_to_significant_and_decimal(value: f64, sig_figs: u32, max_decimals: u32) -> f64 {
-    let abs_value = value.abs();
-    let magnitude = abs_value.log10().floor() as i32;
-    let scale = 10f64.powi(sig_figs as i32 - magnitude - 1);
-    let rounded = (abs_value * scale).round() / scale;
-    round_to_decimals(rounded.copysign(value), max_decimals)
 }
 
 #[cfg(test)]
